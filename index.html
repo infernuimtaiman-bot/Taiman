@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Taiman – Moon Project</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; overflow:hidden; background:#000; font-family:Arial, sans-serif; }
+    canvas { display:block; width:100vw; height:100vh; }
+
+   
+    #menuToggle {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      width: 44px;
+      height: 44px;
+      background: rgba(20,20,20,0.9);
+      border: none;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 20;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    }
+    #menuToggle span {
+      width: 24px;
+      height: 3px;
+      background: #fff;
+      margin: 3px 0;
+      display: block;
+    }
+
+   
+    #uiPanel {
+      position: fixed;
+      top: 0;
+      left: -280px;
+      width: 260px;
+      height: 100%;
+      background: rgba(15,15,15,0.96);
+      padding: 20px;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 14px;
+      z-index: 15;
+      transition: left 0.35s ease;
+      overflow-y: auto;
+    }
+    #uiPanel.active { left: 0; }
+
+    #uiPanel h3 {
+      margin-top:0;
+      font-size:16px;
+      text-align:center;
+    }
+    #uiPanel label {
+      font-weight: bold;
+      display: block;
+      margin: 14px 0 6px;
+    }
+    #uiPanel input, #uiPanel select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      outline: none;
+      font-size: 14px;
+    }
+
+    
+    #telegram {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #0088cc, #00c6ff);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 50px;
+      font-size: 15px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 0 12px rgba(0,200,255,0.7);
+      cursor: pointer;
+      transition: 0.3s;
+      z-index: 20;
+      text-decoration: none;
+    }
+    #telegram:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 14px rgba(0,200,255,0.9);
+    }
+    #telegram img {
+      width: 22px;
+      height: 22px;
+    }
+
+  
+    @media (max-width: 600px) {
+      #uiPanel { width: 70%; }
+      #telegram { font-size: 14px; padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+
+<button id="menuToggle">
+  <span></span>
+  <span></span>
+  <span></span>
+</button>
+
+<div id="uiPanel">
+  <h3>⚙️ Sozlamalar</h3>
+
+  <label>📂 Tasvir Tanlang:</label>
+  <input type="file" id="fileInput" accept="image/*">
+
+  <label>🎨 Rang:</label>
+  <select id="colorSelect">
+    <option value="none"></option>
+    <option value="grayscale">⚫ Oq-qora</option>
+    <option value="red">🔴 Qizil</option>
+    <option value="green">🟢 Yashil</option>
+    <option value="blue">🔵 Ko‘k</option>
+    <option value="purple">🟣 Binafsha</option>
+  </select>
+
+  <label>✍️ Ism yozish:</label>
+  <input type="text" id="nameInput" placeholder="Ismingizni kiriting">
+
+  <label>🚩 Bayroq tanlash:</label>
+  <select id="flagSelect">
+    <option value="none">❌ Yo‘q</option>
+    <option value="uz">🇺🇿 O‘zbekiston</option>
+    <option value="us">🇺🇸 AQSH</option>
+    <option value="ru">🇷🇺 Rossiya</option>
+    <option value="jp">🇯🇵 Yaponiya</option>
+  </select>
+</div>
+
+<!-- 📢 Telegram reklama -->
+<a id="telegram" href="https://t.me/Taiman_official" target="_blank">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" alt="Telegram">
+  <span>@Taiman_official</span>
+</a>
+
+<script src='https://cdnjs.cloudflare.com/ajax/libs/three.js/108/three.min.js'></script>
+<script src='https://cdn.jsdelivr.net/gh/mrdoob/three.js@2410ad1a8f5844df00191600eafda59def537830/examples/js/controls/OrbitControls.js'></script>
+
+<script>
+var textureURL = "https://s3-us-west-2.amazonaws.com/s.cdpn.io/17271/lroc_color_poles_1k.jpg";
+var displacementURL = "https://s3-us-west-2.amazonaws.com/s.cdpn.io/17271/ldem_3_8bit.jpg";
+var worldURL = "https://s3-us-west-2.amazonaws.com/s.cdpn.io/17271/hipp8_s.jpg";
+
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+var renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enablePan = false;
+
+var geometry = new THREE.SphereGeometry(2, 60, 60);
+
+
+function createMoonTexture(baseURL, overlayFile, colorOverlay, text, flag) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "";
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const texture = new THREE.Texture(canvas);
+
+    image.onload = function() {
+      canvas.width = image.width;
+      canvas.height = image.height;
+      ctx.drawImage(image, 0, 0);
+
+      
+      if (overlayFile) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const overlayImg = new Image();
+          overlayImg.onload = function() {
+            const w = image.width / 3;
+            const h = image.height / 2;
+            const x = (image.width - w) / 2;
+            const y = (image.height - h) / 2;
+            ctx.globalAlpha = 0.9;
+            ctx.drawImage(overlayImg, x, y, w, h);
+            ctx.globalAlpha = 1.0;
+
+          
+            if (colorOverlay !== "none" && colorOverlay !== "grayscale") {
+              ctx.globalAlpha = 0.4;
+              ctx.fillStyle = colorOverlay;
+              ctx.fillRect(x, y, w, h);
+              ctx.globalAlpha = 1.0;
+            }
+            finalize();
+          };
+          overlayImg.src = e.target.result;
+        };
+        reader.readAsDataURL(overlayFile);
+      } else {
+        finalize();
+      }
+
+      function finalize() {
+       
+        if (text) {
+          ctx.fillStyle = "white";
+          ctx.font = "bold 80px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(text, canvas.width/2, canvas.height*0.2);
+        }
+
+       
+        if (flag !== "none") {
+          const flagImg = new Image();
+          flagImg.onload = function() {
+            const fw = 200;
+            const fh = 120;
+            ctx.drawImage(flagImg, canvas.width-250, canvas.height-200, fw, fh);
+            texture.needsUpdate = true;
+            resolve(texture);
+          };
+          flagImg.src = `https://flagcdn.com/w320/${flag}.png`;
+        } else {
+          texture.needsUpdate = true;
+          resolve(texture);
+        }
+      }
+    };
+    image.src = baseURL;
+  });
+}
+
+var texture = new THREE.TextureLoader().load(textureURL);
+var displacementMap = new THREE.TextureLoader().load(displacementURL);
+var worldTexture = new THREE.TextureLoader().load(worldURL);
+
+var material = new THREE.MeshPhongMaterial({
+  map: texture,
+  displacementMap: displacementMap,
+  displacementScale: 0.06,
+  bumpMap: displacementMap,
+  bumpScale: 0.04,
+  reflectivity: 0,
+  shininess: 0
+});
+
+var moon = new THREE.Mesh(geometry, material);
+scene.add(moon);
+
+
+const light = new THREE.DirectionalLight(0xFFFFFF, 1);
+light.position.set(-100, 10, 50);
+scene.add(light);
+var hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.1);
+scene.add(hemiLight);
+
+
+var worldGeometry = new THREE.SphereGeometry(1000, 60, 60);
+var worldMaterial = new THREE.MeshBasicMaterial({
+  map: worldTexture,
+  side: THREE.BackSide
+});
+var world = new THREE.Mesh(worldGeometry, worldMaterial);
+scene.add(world);
+
+
+camera.position.set(0, 0, 6);
+controls.target.set(0, 0, 0);
+controls.update();
+
+
+function animate() {
+  requestAnimationFrame(animate);
+  moon.rotation.y += 0.002;
+  world.rotation.y += 0.0001;
+  renderer.render(scene, camera);
+}
+animate();
+
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+
+function updateMoon() {
+  const file = document.getElementById("fileInput").files[0];
+  const color = document.getElementById("colorSelect").value;
+  const text = document.getElementById("nameInput").value;
+  const flag = document.getElementById("flagSelect").value;
+  createMoonTexture(textureURL, file, color, text, flag).then((newTex) => {
+    moon.material.map = newTex;
+    moon.material.needsUpdate = true;
+  });
+}
+
+document.getElementById("fileInput").addEventListener("change", updateMoon);
+document.getElementById("colorSelect").addEventListener("change", updateMoon);
+document.getElementById("nameInput").addEventListener("input", updateMoon);
+document.getElementById("flagSelect").addEventListener("change", updateMoon);
+
+
+document.getElementById("menuToggle").addEventListener("click", () => {
+  document.getElementById("uiPanel").classList.toggle("active");
+});
+</script>
+</body>
+</html>
